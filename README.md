@@ -4,7 +4,9 @@ The reversible debugger allows the programmer to explore the derivations of a go
 
 * down: next goal;
 * left/right: allows one to explore the different choices of a nondeterministic call;
-* up: previous goal in the same derivation.
+* up: previous goal in the same derivation;
+* ";" (semicolon): alternative solutions (as in Prolog);
+* s (skip): runs continuously until the next failure/sucess.
 
 A typical session looks as follows:
 
