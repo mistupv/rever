@@ -152,8 +152,8 @@ solve_check([A|T],L,Del,InitialGoal) :-
    (Key=up ->      !, retractall(notrace),backward_step([A|T],L,Del,InitialGoal)
     ; Key=enter -> !, next_choice([A|T],L,[],[],Del,InitialGoal)
     ; Key=down ->  !, next_choice([A|T],L,[],[],Del,InitialGoal)
-    ; Key=left ->  !, delete_subcomputation_simple(1),solve_check([A|T],L,Del,InitialGoal)
-    ; Key=right -> !, delete_subcomputation_simple(1),solve_check([A|T],L,Del,InitialGoal)
+    ; Key=left ->  !, delete_subcomputation_simple(0),solve_check([A|T],L,Del,InitialGoal)
+    ; Key=right -> !, delete_subcomputation_simple(0),solve_check([A|T],L,Del,InitialGoal)
     ; Key=skip ->  !, retractall(notrace),assert(notrace),next_choice([A|T],L,[],[],Del,InitialGoal)
     ; format("ERROR"), abort
    ).
@@ -179,7 +179,7 @@ delete_subcomputation(N) :-
 
 delete_subcomputation_aux(0,N) :- !, cursor_move(N,up).
 delete_subcomputation_aux(N,M) :-
-   format("                                                                                ~n"),
+   format("                                                  ~n"),
    NN is N-1, delete_subcomputation_aux(NN,M).
 
 is_pending_choice([user(_,_,_,_,[_|_])|_]) :- !.
@@ -202,7 +202,7 @@ next_choice(G,L,_Done,[],Del,InitialGoal) :-
    format("No more solutions...~n"),
    read_keyatom(Key),
    (Key=up -> !, cursor_move(1,up),
-                 format("                                                                                ~n"),
+                 format("                                                  ~n"),
    	             cursor_move(1,up),
    	             retractall(notrace),backward_step(G,L,Del,InitialGoal)
     ; abort

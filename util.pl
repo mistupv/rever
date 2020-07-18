@@ -5,11 +5,15 @@
 
 %% Some utilities (pretty printing, tracing, etc)
 
+unify_bindings([]).
+unify_bindings([Val=Var|R]) :- '$VAR'(Val)=Var,!,unify_bindings(R).
+unify_bindings([_|R]) :- unify_bindings(R).
+
 print_goal(G,L) :-
    ansi_format([fg(blue)],"Call: ",[]),
-   copy_term((L,G),(LC,GC)),unify(LC),
-   %comma_list(GCcon,GC),numbervars(GCcon,0,_),print(GCcon),nl.
-   numbervars(GC,0,_), GC = [A|T],
+   copy_term((L,G),(LC,GC)), 
+   numbervars((LC,GC)),varnumbers_names((LC,GC),(LC2,GC2),Bindings),
+   unify(LC2),unify_bindings(Bindings), GC2 = [A|T],
    ansi_format([underline],"~w",[A]),
    (T=[] -> nl
    ; !, comma_list(Tcon,T), format(",~w~n",[Tcon])
@@ -17,9 +21,9 @@ print_goal(G,L) :-
 
 print_goal_nondet(G,L) :-
    ansi_format([fg(blue)],"Call: ",[]),
-   copy_term((L,G),(LC,GC)),unify(LC),
-   %comma_list(GCcon,GC),numbervars(GCcon,0,_),print(GCcon),nl.
-   numbervars(GC,0,_), GC = [A|T],
+   copy_term((L,G),(LC,GC)), 
+   numbervars((LC,GC)),varnumbers_names((LC,GC),(LC2,GC2),Bindings),
+   unify(LC2),unify_bindings(Bindings), GC2 = [A|T],
    ansi_format([underline,bold],"~w",[A]),
    (T=[] -> nl
    ; !, comma_list(Tcon,T), format(",~w~n",[Tcon])
@@ -33,18 +37,18 @@ print_success(G,L) :-
    %format("                                                                                ~n"),
    %cursor_move(1,up),
    ansi_format([fg(green)],"Exit: ",[]),
-   copy_term((L,G),(LC,GC)),unify(LC),  
-   %comma_list(GCcon,GC),numbervars(GCcon,0,_),print(GCcon),nl. %%format(" //success"),nl.
-   numbervars(GC,0,_), GC = [A|T],
+   copy_term((L,G),(LC,GC)), 
+   numbervars((LC,GC)),varnumbers_names((LC,GC),(LC2,GC2),Bindings),
+   unify(LC2),unify_bindings(Bindings), GC2 = [A|T],
    ansi_format([],"~w",[A]),
    (T=[] -> !, nl; comma_list(Tcon,T), format(",~w~n",[Tcon])).
 
 
 print_failure(G,L) :-
    ansi_format([fg(red)],"Fail: ",[]),
-   copy_term((L,G),(LC,GC)),unify(LC),
-   %comma_list(GCcon,GC),numbervars(GCcon,0,_),print(GCcon),nl.
-   numbervars(GC,0,_), GC = [A|T],
+   copy_term((L,G),(LC,GC)), 
+   numbervars((LC,GC)),varnumbers_names((LC,GC),(LC2,GC2),Bindings),
+   unify(LC2),unify_bindings(Bindings), GC2 = [A|T],
    ansi_format([],"~w",[A]),
    (T=[] -> !, nl ; comma_list(Tcon,T), format(",~w~n",[Tcon])).
 
