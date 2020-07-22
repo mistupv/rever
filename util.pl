@@ -1,13 +1,97 @@
-:- module(util,[print_goal/2,print_goal_nondet/2,print_success/2,print_failure/2,print_subs/2,print_solution/2,trace_history/1,read_key/1,read_keyatom/1]).
+%% Some utilities (pretty printing, tracing, etc)
+
+:- module(util,[print_call/2,print_fail/2,print_exit/2,print_redo/2,read_keyatom/1,print_solution/2]). %%,print_goal_nondet/2,print_success/2,print_failure/2,print_subs/2,print_solution/2,trace_history/1,read_key/1]).
 
 :- use_module(library(ansi_term)). 
 :- use_module(ansi_termx). 
 
-%% Some utilities (pretty printing, tracing, etc)
+   % copy_term(InitialGoal,GC),term_variables(GC,Vars), numbervars(Vars,0,Next),
+   % copy_term((L,InitialGoal),(LC,G)),
+   % term_variables(G,VarsG),
+   % unify(LC),
+   % %numbervars(G,0,_),
+   % comma_list(Goal,GC),
+   % ansi_format([bold]," [~w]: ",[Goal]),
+   % numbervars(VarsG,Next,_),
+   % print_subs(Vars,VarsG).   
+
+print_solution(G,Env) :-
+   ansi_format([bold],"**Solution: ",[]),
+   copy_term(G,GCC), term_variables(GCC,Vars), numbervars(Vars),
+   %
+   copy_term((G,Env),(Gc,Envc)),
+   term_variables(Gc,VarsG),
+   %numbervars((Gc,Envc)),varnumbers_names((Gc,Envc),(Gc2,Envc2),Bindings),
+   maplist(call,Envc),
+   %unify_bindings(Bindings), 
+   %format(" ~w~n",[Gc2]),
+   numbervars(VarsG),
+   %
+   print_subs(Vars,VarsG),!.
+
+print_subs([],[]) :- nl.
+print_subs([X],[Val]) :- !,
+   print(X),format(" = "),print(Val),nl.
+print_subs([X|R],[Val|RV]) :-
+   print(X),format(" = "),print(Val),format(", "),print_subs(R,RV),!.
+
+
+print_call(A,Env) :-
+   ansi_format([fg(green),bold],"Call: ",[]),
+   copy_term((A,Env),(Ac,Envc)),
+   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
+   maplist(call,Envc2),
+   unify_bindings(Bindings), 
+   format("~w~n",[Ac2]),!.
+
+print_redo(A,Env) :-
+   ansi_format([fg8(100),bold],"Redo: ",[]),
+   copy_term((A,Env),(Ac,Envc)),
+   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
+   maplist(call,Envc2),
+   unify_bindings(Bindings), 
+   format("~w~n",[Ac2]),!.
+
+print_exit(A,Env) :-
+   ansi_format([fg(green),bold],"Exit: ",[]),
+   copy_term((A,Env),(Ac,Envc)),
+   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
+   maplist(call,Envc2),
+   unify_bindings(Bindings), 
+   format("~w~n",[Ac2]),!.
+
+print_fail(A,Env) :-
+   ansi_format([fg(red),bold],"Fail: ",[]),
+   copy_term((A,Env),(Ac,Envc)),
+   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
+   maplist(call,Envc2),
+   unify_bindings(Bindings), 
+   format("~w~n",[Ac2]),!.
 
 unify_bindings([]).
 unify_bindings([Val=Var|R]) :- '$VAR'(Val)=Var,!,unify_bindings(R).
 unify_bindings([_|R]) :- unify_bindings(R).
+
+read_key([Code|Codes]) :-
+   get_single_char(Code),
+   read_pending_codes(user,Codes,[]).
+
+read_keyatom(KAtom) :-
+   read_key(Codes),
+   codes_keyatom(Codes,KAtom).
+
+codes_keyatom([13],enter)       :- !.
+codes_keyatom([115],skip)       :- !.
+codes_keyatom([116],trace)       :- !.
+codes_keyatom([104],help)       :- !.
+codes_keyatom([59],semicolon)   :- !.
+codes_keyatom([27,91,65],up)    :- !.
+codes_keyatom([27,91,66],down)  :- !.
+codes_keyatom([27,91,67],right) :- !.
+codes_keyatom([27,91,68],left)  :- !.
+
+
+/*
 
 print_goal(G,L) :-
    ansi_format([fg(blue)],"Call: ",[]),
@@ -70,25 +154,8 @@ print_solution(InitialGoal,L) :-
    numbervars(VarsG,Next,_),
    print_subs(Vars,VarsG).   
 
-read_key([Code|Codes]) :-
-   get_single_char(Code),
-   read_pending_codes(user,Codes,[]).
-
-read_keyatom(KAtom) :-
-   read_key(Codes),
-   codes_keyatom(Codes,KAtom).
-
-codes_keyatom([13],enter)       :- !.
-codes_keyatom([115],skip)       :- !.
-codes_keyatom([116],trace)       :- !.
-codes_keyatom([104],help)       :- !.
-codes_keyatom([59],semicolon)   :- !.
-codes_keyatom([27,91,65],up)    :- !.
-codes_keyatom([27,91,66],down)  :- !.
-codes_keyatom([27,91,67],right) :- !.
-codes_keyatom([27,91,68],left)  :- !.
 
 
 trace_history(L) :-
    format("      *trace: "),copy_term(L,LC), numbervars(LC,0,_), print(LC), nl. %%, get_single_char(_).
-
+*/

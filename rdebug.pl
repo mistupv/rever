@@ -12,96 +12,279 @@ rdebug(G) :-
    fail.
 rdebug(G) :- 
    comma_list(G,[A|T]),
-   matching_clauses(A,[],Clauses), !,
    retractall(notrace),
-   solve([A|T],[],[],Clauses,0,[A|T]).
+   solve([A|T],[],bot,[],[],[A|T]).
 
+%% "bot" means no clause label!!
+
+%%%%%%%%%%%%%%%%%%%
+%% forward calculus
+
+% failure
+solve([fail|T],Env,bot,[],History,InitialGoal) :-
+  !,
+  format("~nNo more solutions...~n",[]),read_keyatom(Key),
+  (Key=up ->       !, retractall(notrace),
+                      backward_step([fail|T],Env,bot,[],History,InitialGoal)
+    ; true
+   ).
+
+% next solution (there are alternatives)
+solve([],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal) :-
+  !,
+  (notraceprint_solution(InitialGoal,Env),read_keyatom(Key),
+  (Key=enter -> !, solve([A|T2],Env2,Cl,Alts,[next(Env)|History],InitialGoal)
+    ; Key=down -> !, solve([A|T2],Env2,Cl,Alts,[next(Env)|History],InitialGoal)
+    ; Key=up ->   !, retractall(notrace),
+                     bsolve([],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal)
+    ; solve([A|T2],Env2,Cl,Alts,[next(Env)|History],InitialGoal)
+   ).
+
+% next solution (no alternatives)
+solve([],Env,bot,[],History,InitialGoal) :-
+  !,
+  print_solution(InitialGoal,Env),
+  format("No more solutions...~n",[]),
+  read_keyatom(Key),
+  (Key=enter -> !, true
+    ; Key=down -> !, true
+    ; Key=up ->   !, retractall(notrace),
+                     bsolve([],Env,bot,[],History,InitialGoal)
+    ; true
+   ).
+
+
+% backtrack
+solve([fail|T],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal) :-
+  !,
+  print_redo(A,Env2),read_keyatom(Key),
+  (Key=enter -> !, solve([A|T2],Env2,Cl,Alts,[bck([fail|T],Env)|History],InitialGoal)
+    ; Key=down -> !, solve([A|T2],Env2,Cl,Alts,[bck([fail|T],Env)|History],InitialGoal)
+    ; Key=up ->   !, retractall(notrace),
+                     bsolve([fail|T],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal)
+    ; solve([A|T2],Env2,Cl,Alts,[bck([fail|T],Env)|History],InitialGoal)
+   ).
+
+% exit
+solve([ret(A)|T],Env,bot,Alts,History,InitialGoal) :-
+  !,  %% moved this case here to avoid considering choice_fail for ret(A) 
+  print_exit(A,Env),read_keyatom(Key),
+  (Key=enter -> !, solve(T,Env,bot,Alts,[exit(A)|History],InitialGoal)
+    ; Key=down -> !, solve(T,Env,bot,Alts,[exit(A)|History],InitialGoal)
+    ; Key=up ->   !, retractall(notrace),
+                     bsolve([ret(A)|T],Env,bot,Alts,History,InitialGoal)
+    ; solve([ret(A)|T],Env,bot,Alts,History,InitialGoal)
+   ).
+
+%% choice 
+solve([A|T],Env,bot,Alts,History,InitialGoal) :-
+  matching_clauses(A,Env,[Cl|Clauses]),!, %% at least one matching clause!
+  create_alts([A|T],Env,Clauses,AAlts),
+  append(AAlts,Alts,NewAlts),
+  length([Cl|Clauses],N),
+  solve([A|T],Env,Cl,NewAlts,[ch(N)|History],InitialGoal).
+
+%% choice fail 
+solve([A|T],Env,bot,Alts,History,InitialGoal) :-
+  matching_clauses(A,Env,[]),!, %% no matching clause!
+  print_call(A,Env),read_keyatom(Key1),
+  (Key1=enter -> !, print_fail(A,Env),read_keyatom(Key2),
+                    (Key2=enter -> !, solve([fail|T],Env,bot,Alts,[fail(A)|History],InitialGoal)
+                    ; Key2=down -> !, solve([fail|T],Env,bot,Alts,[fail(A)|History],InitialGoal)
+                    ; Key2=up ->   !, retractall(notrace),
+                                      solve([A|T],Env,bot,Alts,History,InitialGoal)
+                    )
+    ; Key1=down -> !, print_fail(A,Env),read_keyatom(Key2),
+                    (Key2=enter -> !, solve([fail|T],Env,bot,Alts,[fail(A)|History],InitialGoal)
+                    ; Key2=down -> !, solve([fail|T],Env,bot,Alts,[fail(A)|History],InitialGoal)
+                    ; Key2=up ->   !, retractall(notrace),
+                                      solve([A|T],Env,bot,Alts,History,InitialGoal)
+                    )
+    ; Key1=up ->   !, retractall(notrace),
+                      bsolve([A|T],Env,bot,Alts,History,InitialGoal)
+    ; print_fail(A,Env),read_keyatom(Key2),
+      (Key2=enter -> !, solve([fail|T],Env,bot,Alts,[fail(A)|History],InitialGoal)
+       ; Key2=down -> !, solve([fail|T],Env,bot,Alts,[fail(A)|History],InitialGoal)
+       ; Key2=up ->   !, retractall(notrace),
+                         solve([A|T],Env,bot,Alts,History,InitialGoal)
+                         )
+   ).
+
+% unfold
+solve([A|T],Env,Cl,Alts,History,InitialGoal) :-
+  not(Cl=bot),!,
+  print_call(A,Env),read_keyatom(Key),
+  (Key=enter -> !, clause(H,B,Cl), %% checking unifiability is not needed... 
+                   comma_list(B,Blist),
+                   add_to_list(Blist,[ret(A)|T],NT),   %% we add ret(A) to print "exit"
+                   size(Blist,Blen),
+                   unifiable(A,H,MGU),
+                   append(Env,MGU,NewEnv),
+                   solve(NT,NewEnv,bot,Alts,[unf(A,Env,Cl,Blen)|History],InitialGoal)
+    ; Key=down -> !, clause(H,B,Cl), %% checking unifiability is not needed... 
+                     comma_list(B,Blist),
+                     add_to_list(Blist,[ret(A)|T],NT),   %% we add ret(A) to print "exit"
+                     size(Blist,Blen),
+                     unifiable(A,H,MGU),
+                     append(Env,MGU,NewEnv),
+                     solve(NT,NewEnv,bot,Alts,[unf(A,Env,Cl,Blen)|History],InitialGoal)
+    ; Key=up ->   !, retractall(notrace),
+                     bsolve([A|T],Env,Cl,Alts,History,InitialGoal)
+    ; clause(H,B,Cl), %% checking unifiability is not needed... 
+      comma_list(B,Blist),
+      add_to_list(Blist,[ret(A)|T],NT),   %% we add ret(A) to print "exit"
+      size(Blist,Blen),
+      unifiable(A,H,MGU),
+      append(Env,MGU,NewEnv),
+      solve(NT,NewEnv,bot,Alts,[unf(A,Env,Cl,Blen)|History],InitialGoal)
+   ).
+
+matching_clauses(A,Env,Clauses) :- 
+   copy_term((A,Env),(Ac,Envc)),
+   maplist(call,Envc),
+   findall(Ref,clause(Ac,_,Ref),Clauses).
+
+create_alts(_G,_Env,[],[]).
+create_alts(G,Env,[Ref|R],[(G,Env,Ref)|RR]) :- create_alts(G,Env,R,RR).
+
+%%%%%%%%%%%%%%%%%%%%
+%% backward calculus
+
+% this is just to avoid going backwards from the initial goal...
+bsolve(G,[],bot,[],[],G) :-
+  !,
+  solve(G,[],bot,[],[],G).
+
+% next solution (there are alternatives)
+bsolve([A|T2],Env2,Cl,Alts,[next(Env)|History],InitialGoal) :- 
+  !,
+  solve([],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal).
+
+% backtrack
+bsolve([A|T2],Env2,Cl,Alts,[bck([fail|T],Env)|History],InitialGoal) :-
+  !,
+  solve([fail|T],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal).
+
+% exit
+bsolve(T,Env,bot,Alts,[exit(A)|History],InitialGoal) :-
+  !, 
+  solve([ret(A)|T],Env,bot,Alts,History,InitialGoal).
+  
+%% choice 
+bsolve([A|T],Env,_Cl,NewAlts,[ch(N)|History],InitialGoal) :-
+  !,
+  M is N-1,
+  length(AAlts,M),
+  append(AAlts,Alts,NewAlts),
+  bsolve([A|T],Env,bot,Alts,History,InitialGoal).
+
+%% choice fail 
+bsolve([fail|T],Env,bot,Alts,[fail(A)|History],InitialGoal) :-
+  !,
+  solve([A|T],Env,bot,Alts,History,InitialGoal).
+
+% unfold
+bsolve(NT,_NewEnv,bot,Alts,[unf(A,Env,Cl,Blen)|History],InitialGoal) :-
+  !,
+  length(Blist,Blen),
+  append(Blist,[ret(A)|T],NT),
+  solve([A|T],Env,Cl,Alts,History,InitialGoal).
+
+
+
+
+% some utility predicates:
+
+add_to_list([true],T,T) :- !.
+add_to_list(B,T,NT) :-
+   append(B,T,NT).
+
+size([true],0) :- !.
+size(L,N) :- length(L,N).
+
+
+
+/*
 %%solving goals (deterministic):
 
-solve(_G,_L,_ClausesDone,_ClausesPending,Del,_InitialGoal) :-
-  %format("Del: ~w~n",[Del]),
-  delete_subcomputation(Del),
-  fail.
-
 %% Reached a successful leaf of the SLD tree:
-solve([],L,ClausesDone,ClausesPending,Del,InitialGoal) :-
+solve([],L,ClausesPending,InitialGoal) :-
    print_solution(InitialGoal,L),nl,
    read_keyatom(Key),
-   (Key=up ->          !, retractall(notrace),backward_step([],L,0,InitialGoal)
-    ; Key=semicolon -> !, retractall(notrace),next_choice([],L,ClausesDone,ClausesPending,1,InitialGoal)
+   (%Key=up ->          !, retractall(notrace),backward_step([],L,0,InitialGoal)
+    ; Key=semicolon -> !, retractall(notrace),next_choice([],L,ClausesPending,InitialGoal)
     ; Key=enter ->     !, retractall(notrace),abort
     ; Key=down ->      !, retractall(notrace),abort
-    ; Key=left ->      !, retractall(notrace),cursor_move(2,up),solve([],L,ClausesDone,ClausesPending,Del,InitialGoal)
-    ; Key=right ->     !, retractall(notrace),cursor_move(2,up),solve([],L,ClausesDone,ClausesPending,Del,InitialGoal)
-    ; Key=skip ->      !, retractall(notrace),assert(notrace),next_choice([],L,ClausesDone,ClausesPending,1,InitialGoal)
+    %; Key=left ->      !, retractall(notrace),cursor_move(2,up),solve([],L,ClausesDone,ClausesPending,Del,InitialGoal)
+    %; Key=right ->     !, retractall(notrace),cursor_move(2,up),solve([],L,ClausesDone,ClausesPending,Del,InitialGoal)
+    ; Key=skip ->      !, retractall(notrace),assert(notrace),next_choice([],L,ClausesPending,InitialGoal)
     ; format("ERROR"), abort
    ).
 
-%% Built-in call (a solution exists):
-solve([A|T],L,_,_,_Del,InitialGoal) :-
-   iso_builtin_predicate(A),
-   copy_term((A,L),(Acopy,Lcopy)),
-   unify(Lcopy), 
-   call(Acopy),
-   !,
-   %format("Del: ~w~n",[Del]),
-   print_goal([A|T],L),
-   append(L,[builtin(A)],NL), 
-   print_success([A|T],NL),
-   (notrace, !, Key=enter ; read_keyatom(Key)),
-   (Key=up ->       !, retractall(notrace),backward_step([A|T],L,0,InitialGoal)
-    ; Key=enter ->  !, solve_check(T,NL,0,InitialGoal)
-    ; Key=skip ->   !, assertz(notrace), solve_check(T,NL,0,InitialGoal)
-    ; Key=down ->   !, solve_check(T,NL,0,InitialGoal)
-    ; Key=left ->   !, move_left([A|T],L,[],[],0,InitialGoal)
-    ; Key=right ->  !, move_right([A|T],L,[],[],0,InitialGoal)
-    ; format("ERROR"), abort
-   ).
+% %% Built-in call (a solution exists):
+% solve([A|T],L,_,_,_Del,InitialGoal) :-
+%    iso_builtin_predicate(A),
+%    copy_term((A,L),(Acopy,Lcopy)),
+%    unify(Lcopy), 
+%    call(Acopy),
+%    !,
+%    %format("Del: ~w~n",[Del]),
+%    print_goal([A|T],L),
+%    append(L,[builtin(A)],NL), 
+%    print_success([A|T],NL),
+%    (notrace, !, Key=enter ; read_keyatom(Key)),
+%    (Key=up ->       !, retractall(notrace),backward_step([A|T],L,0,InitialGoal)
+%     ; Key=enter ->  !, solve_check(T,NL,0,InitialGoal)
+%     ; Key=skip ->   !, assertz(notrace), solve_check(T,NL,0,InitialGoal)
+%     ; Key=down ->   !, solve_check(T,NL,0,InitialGoal)
+%     ; Key=left ->   !, move_left([A|T],L,[],[],0,InitialGoal)
+%     ; Key=right ->  !, move_right([A|T],L,[],[],0,InitialGoal)
+%     ; format("ERROR"), abort
+%    ).
 
-%% Built-in call (no solution):
-solve([A|T],L,_,_,_Del,InitialGoal) :-
-   iso_builtin_predicate(A),!,
-   %format("Del: ~w~n",[Del]),
-   print_goal([A|T],L),
-   print_failure([A|T],L),
-   retractall(notrace),
-   %(notrace, !, Key=enter ; read_keyatom(Key)),
-   read_keyatom(Key),
-   (Key=up ->      !, retractall(notrace),backward_step([A|T],L,0,InitialGoal)
-    ; Key=enter -> !, next_choice([A|T],L,[],[],0,InitialGoal)
-    ; Key=down ->  !, next_choice([A|T],L,[],[],0,InitialGoal)
-    ; Key=left ->  !, move_left([A|T],L,[],[],0,InitialGoal)
-    ; Key=right -> !, move_right([A|T],L,[],[],0,InitialGoal)
-    ; Key=skip ->  !, retractall(notrace),assert(notrace),next_choice([A|T],L,[],[],0,InitialGoal)
-    ; format("ERROR"), abort
-   ).
+% %% Built-in call (no solution):
+% solve([A|T],L,_,_,_Del,InitialGoal) :-
+%    iso_builtin_predicate(A),!,
+%    %format("Del: ~w~n",[Del]),
+%    print_goal([A|T],L),
+%    print_failure([A|T],L),
+%    retractall(notrace),
+%    %(notrace, !, Key=enter ; read_keyatom(Key)),
+%    read_keyatom(Key),
+%    (Key=up ->      !, retractall(notrace),backward_step([A|T],L,0,InitialGoal)
+%     ; Key=enter -> !, next_choice([A|T],L,[],[],0,InitialGoal)
+%     ; Key=down ->  !, next_choice([A|T],L,[],[],0,InitialGoal)
+%     ; Key=left ->  !, move_left([A|T],L,[],[],0,InitialGoal)
+%     ; Key=right -> !, move_right([A|T],L,[],[],0,InitialGoal)
+%     ; Key=skip ->  !, retractall(notrace),assert(notrace),next_choice([A|T],L,[],[],0,InitialGoal)
+%     ; format("ERROR"), abort
+%    ).
 
 %% User-defined call (no more matching clauses, do not print fail):
-solve(G,L,ClausesDone,[],_Del,InitialGoal) :-
+solve(G,L,[],InitialGoal) :-
    !,
-   %NDepth is Depth-1,
-   %delete_subcomputation(1),
-   next_choice(G,L,ClausesDone,[],0,InitialGoal).
+   next_choice(G,L,[],InitialGoal).
 
 %% User-defined call (some matching clauses remaining):
-solve([A|T],L,ClausesDone,[Ref|ClausesPending],_Del,InitialGoal) :-
-   append(ClausesDone,[Ref|ClausesPending],Foo),length(Foo,FooN),
-   (FooN>1,!,print_goal_nondet([A|T],L) ; print_goal([A|T],L)),
+solve([A|T],L,[Ref|ClausesPending],InitialGoal) :-
+   %append(ClausesDone,[Ref|ClausesPending],Foo),length(Foo,FooN),
+   %(FooN>1,!,print_goal_nondet([A|T],L) ; print_goal([A|T],L)),
    %delete_subcomputation(NN),
    clause(H,B,Ref),
    comma_list(B,Blist),
-   add_to_list(Blist,T,NT),
+   add_to_list(Blist,[ret(A)|T],NT),
    size(Blist,Blen),
-   append(ClausesDone,[Ref],NewClausesDone),
-   append(L,[user(A,H,Blen,NewClausesDone,ClausesPending)],NL),
-   print_success([A|T],NL),
+   unifiable(A,H,MGU),
+   %append(ClausesDone,[Ref],NewClausesDone),
+   append(L,[user(A,MGU,Blen,ClausesPending)],NL),
+   %print_success([A|T],NL),
    (notrace, !, Key=enter ; read_keyatom(Key)),
-   (Key=up ->       !, retractall(notrace),backward_step([A|T],L,0,InitialGoal)
-    ; Key=enter ->  !, solve_check(NT,NL,0,InitialGoal)
+   (%Key=up ->       !, retractall(notrace),backward_step([A|T],L,InitialGoal)
+    ; Key=enter ->  !, solve_check(NT,NL,InitialGoal)
     ; Key=skip ->   !, assertz(notrace), solve_check(NT,NL,0,InitialGoal)
     ; Key=down ->   !, solve_check(NT,NL,0,InitialGoal)
-    ; Key=left ->   !, move_left([A|T],L,ClausesDone,[Ref|ClausesPending],0,InitialGoal)
-    ; Key=right ->  !, move_right([A|T],L,ClausesDone,[Ref|ClausesPending],0,InitialGoal)
+    %; Key=left ->   !, move_left([A|T],L,ClausesDone,[Ref|ClausesPending],0,InitialGoal)
+    %; Key=right ->  !, move_right([A|T],L,ClausesDone,[Ref|ClausesPending],0,InitialGoal)
     ; format("ERROR"), abort
    ).
 
@@ -242,10 +425,10 @@ next_choice(G,L,ClausesDone,ClausesPending,Del,InitialGoal) :-
    solve(G,L,ClausesDone,ClausesPending,Del,InitialGoal).
 
 
-matching_clauses(A,L,Clauses) :- 
-   copy_term((A,L),(Acopy,Lcopy)),
-   unify(Lcopy),
-   findall(Ref,clause(Acopy,_,Ref),Clauses).
+% matching_clauses(A,L,Clauses) :- 
+%    copy_term((A,L),(Acopy,Lcopy)),
+%    unify(Lcopy),
+%    findall(Ref,clause(Acopy,_,Ref),Clauses).
 
 %%%
 
@@ -288,17 +471,9 @@ backward_step(G,L,_Del,InitialGoal) :-
 remove_elements(0,G,G) :- !.
 remove_elements(N,[_|R],G) :- M is N-1, remove_elements(M,R,G).
 
-size([true],0) :- !.
-size(L,N) :- length(L,N).
-
-add_to_list([true],T,T) :- !.
-add_to_list(B,T,NT) :-
-   %comma_list(B,BL),
-   append(B,T,NT).
-
 unify([]).
 unify([user(A,B,_,_,_)|R]) :- !, A=B, unify(R).
 unify([builtin(A)|R]) :- call(A), unify(R).
 
 
-
+*/
