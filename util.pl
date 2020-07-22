@@ -89,6 +89,7 @@ codes_keyatom([27,91,65],up)    :- !.
 codes_keyatom([27,91,66],down)  :- !.
 codes_keyatom([27,91,67],right) :- !.
 codes_keyatom([27,91,68],left)  :- !.
+codes_keyatom(_,other)  :- !.
 
 
 /*
