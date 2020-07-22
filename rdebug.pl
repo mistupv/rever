@@ -28,14 +28,15 @@ solve([fail|T],Env,bot,[],History,InitialGoal) :-
   format("~nNo more solutions...~n",[]),read_keyatom(Key),
   (Key=up ->       !, retractall(notrace),retractall(noshow),
                       bsolve([fail|T],Env,bot,[],History,InitialGoal)
-    ; true
+   ; Key=quit ->     !, abort                      
+   ; true
    ).
 
 % next solution (there are alternatives)
 solve([],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal) :-
   !,
   print_solution(InitialGoal,Env),
-  retractall(notrace),
+  %retractall(notrace),
   read_keyatom(Key1),
   (Key1=semicolon -> !, (noshow,! ; print_redo(A,Env2)),
                         (notrace, !, Key2=enter ; read_keyatom(Key2)),
@@ -46,10 +47,12 @@ solve([],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal) :-
                                           solve([],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal)
                         ; Key2=skip ->   !, retractall(notrace), assertz(notrace),
                                             solve([A|T2],Env2,Cl,Alts,[next(Env)|History],InitialGoal)
+                        ; Key2=quit ->     !, abort                    
                         ; solve([A|T2],Env2,Cl,Alts,[next(Env)|History],InitialGoal)
                         )
     ; Key1=up ->   !, retractall(notrace),retractall(noshow),
-                     print(↑),bsolve([],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal)
+                     print(^),bsolve([],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal)
+    ; Key1=quit ->  !, abort
     ; true %% do nothing
    ).
 
@@ -62,7 +65,8 @@ solve([],Env,bot,[],History,InitialGoal) :-
   (Key=enter -> !, true
     ; Key=down -> !, true
     ; Key=up ->   !, retractall(notrace),retractall(noshow),
-                     print(↑),bsolve([],Env,bot,[],History,InitialGoal)
+                     print(^),bsolve([],Env,bot,[],History,InitialGoal)
+    ; Key=quit ->  !, abort
     ; true
    ).
 
@@ -75,9 +79,10 @@ solve([fail|T],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal) :-
   (Key=enter -> !, solve([A|T2],Env2,Cl,Alts,[bck([fail|T],Env)|History],InitialGoal)
     ; Key=down -> !, solve([A|T2],Env2,Cl,Alts,[bck([fail|T],Env)|History],InitialGoal)
     ; Key=up ->   !, retractall(notrace),retractall(noshow),
-                     print(↑),bsolve([fail|T],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal)
+                     print(^),bsolve([fail|T],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal)
     ; Key=skip ->   !, retractall(notrace), assertz(notrace),
                        solve([A|T2],Env2,Cl,Alts,[bck([fail|T],Env)|History],InitialGoal)
+    ; Key=quit ->  !, abort
     ; solve([A|T2],Env2,Cl,Alts,[bck([fail|T],Env)|History],InitialGoal)
    ).
 
@@ -89,9 +94,10 @@ solve([ret(A)|T],Env,bot,Alts,History,InitialGoal) :-
   (Key=enter -> !, solve(T,Env,bot,Alts,[exit(A)|History],InitialGoal)
     ; Key=down -> !, solve(T,Env,bot,Alts,[exit(A)|History],InitialGoal)
     ; Key=up ->   !, retractall(notrace),retractall(noshow),
-                     print(↑),bsolve([ret(A)|T],Env,bot,Alts,History,InitialGoal)
+                     print(^),bsolve([ret(A)|T],Env,bot,Alts,History,InitialGoal)
     ; Key=skip ->   !, retractall(notrace), assertz(notrace),
                        solve([ret(A)|T],Env,bot,Alts,History,InitialGoal)
+    ; Key=quit ->  !, abort
     ; solve(T,Env,bot,Alts,[exit(A)|History],InitialGoal)
    ).
 
@@ -101,6 +107,21 @@ solve([rtrace|T],Env,Cl,Alts,History,InitialGoal) :-
   retractall(notrace),retractall(noshow),
   solve(T,Env,Cl,Alts,History,InitialGoal).
 
+%% choice (built-in)
+solve([A|T],Env,bot,Alts,History,InitialGoal) :-
+  (iso_builtin_predicate(A) ; predicate_property(A,imported_from(_))),
+  !,
+  (noshow,!; print_call_builtin(A,Env)),
+  (notrace, !, Key1=enter ; read_keyatom(Key1)),
+  (Key1=enter -> !, solve_builtin([A|T],Env,bot,Alts,History,InitialGoal)
+    ; Key1=down -> !, solve_builtin([A|T],Env,bot,Alts,History,InitialGoal)
+    ; Key1=up ->   !, retractall(notrace),retractall(noshow),
+                     print(^),bsolve([A|T],Env,bot,Alts,History,InitialGoal)
+    ; Key1=skip ->  !, retractall(notrace), assertz(notrace),
+                      solve_builtin([A|T],Env,bot,Alts,History,InitialGoal)
+    ; Key1=quit ->  !, abort
+    ; solve_builtin([A|T],Env,bot,Alts,History,InitialGoal)
+  ).
 
 %% choice 
 solve([A|T],Env,bot,Alts,History,InitialGoal) :-
@@ -111,9 +132,10 @@ solve([A|T],Env,bot,Alts,History,InitialGoal) :-
   (Key=enter -> !, solve_choice([A|T],Env,bot,Alts,History,InitialGoal)
     ; Key=down -> !, solve_choice([A|T],Env,bot,Alts,History,InitialGoal)
     ; Key=up ->   !, retractall(notrace),retractall(noshow),
-                     print(↑),bsolve([A|T],Env,bot,Alts,History,InitialGoal)
+                     print(^),bsolve([A|T],Env,bot,Alts,History,InitialGoal)
     ; Key=skip ->  !, retractall(notrace), assertz(notrace),
                       solve_choice([A|T],Env,bot,Alts,History,InitialGoal)
+    ; Key=quit ->  !, abort
     ; solve_choice([A|T],Env,bot,Alts,History,InitialGoal)
   ).
 
@@ -125,9 +147,10 @@ solve([A|T],Env,bot,Alts,History,InitialGoal) :-
   (Key1=enter -> !, solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal)
     ; Key1=down -> !, solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal)
     ; Key1=up ->   !, retractall(notrace),retractall(noshow),
-                      print(↑),bsolve([A|T],Env,bot,Alts,History,InitialGoal)
+                      print(^),bsolve([A|T],Env,bot,Alts,History,InitialGoal)
     ; Key1=skip ->   !, retractall(notrace), assertz(notrace),
                        solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal)
+    ; Key1=quit ->  !, abort
     ; solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal)
    ).
 
@@ -144,28 +167,39 @@ solve([A|T],Env,Cl,Alts,History,InitialGoal) :-
   append(Env,MGU,NewEnv),
   solve(NT,NewEnv,bot,Alts,[unf(A,Env,Cl,Blen)|History],InitialGoal).
 
+%% some auxiliary predicates:
 
-% unfold
-% solve([A|T],Env,Cl,Alts,History,InitialGoal) :-
-%   not(Cl=bot),!,
-%   %(notrace, !, Key=enter ; read_keyatom(Key)),
-%   (Key=enter -> !, solve_unfold([A|T],Env,Cl,Alts,History,InitialGoal)
-%     ; Key=down -> !, solve_unfold([A|T],Env,Cl,Alts,History,InitialGoal)
-%     ; Key=up ->   !, retractall(notrace),retractall(noshow),
-%                      bsolve([A|T],Env,Cl,Alts,History,InitialGoal)
-%     ; Key=skip ->  !, retractall(notrace), assertz(notrace),
-%                       solve_unfold([A|T],Env,Cl,Alts,History,InitialGoal)
-%     ; solve_unfold([A|T],Env,Cl,Alts,History,InitialGoal)
-%    ).
+solve_builtin([A|T],Env,bot,Alts,History,InitialGoal) :-
+  copy_term((A,Env),(Ac,Envc)),
+  maplist(call,Envc),
+  call(Ac),
+  !,
+  unifiable(A,Ac,MGU),
+  append(Env,MGU,NewEnv),
+  (noshow,! ; print_exit_builtin(A,NewEnv)),
+  (notrace, !, Key2=enter ; read_keyatom(Key2)),
+  (Key2=enter -> !, solve(T,NewEnv,bot,Alts,[builtin(A,Env)|History],InitialGoal)
+    ; Key2=down -> !, solve(T,NewEnv,bot,Alts,[builtin(A,Env)|History],InitialGoal)
+    ; Key2=up ->   !, retractall(notrace),retractall(noshow),
+                     print(^),solve([A|T],Env,bot,Alts,History,InitialGoal)
+    ; Key2=skip ->  !, retractall(notrace), assertz(notrace),
+                      solve(T,NewEnv,bot,Alts,[builtin(A,Env)|History],InitialGoal)
+    ; Key2=quit ->  !, abort
+    ; solve(T,NewEnv,bot,Alts,[builtin(A,Env)|History],InitialGoal)
+  ).
 
-% solve_unfold([A|T],Env,Cl,Alts,History,InitialGoal) :-
-%   clause(H,B,Cl), %% checking unifiability is not needed... 
-%   comma_list(B,Blist),
-%   add_to_list(Blist,[ret(A)|T],NT),   %% we add ret(A) to print "exit"
-%   size(Blist,Blen),
-%   unifiable(A,H,MGU),
-%   append(Env,MGU,NewEnv),
-%   solve(NT,NewEnv,bot,Alts,[unf(A,Env,Cl,Blen)|History],InitialGoal).
+solve_builtin([A|T],Env,bot,Alts,History,InitialGoal) :-
+  (noshow,! ; print_fail_builtin(A,Env)),
+  (notrace, !, Key2=enter ; read_keyatom(Key2)),
+  (Key2=enter -> !, solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal)
+    ; Key2=down -> !, solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal)
+    ; Key2=up ->   !, retractall(notrace),retractall(noshow),
+                     print(^),solve([A|T],Env,bot,Alts,History,InitialGoal)
+    ; Key2=skip ->  !, retractall(notrace), assertz(notrace),
+                      solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal)
+    ; Key2=quit ->  !, abort
+    ; solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal)
+  ).
 
 
 solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal) :-
@@ -174,9 +208,10 @@ solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal) :-
   (Key2=enter -> !, solve([fail|T],Env,bot,Alts,[fail(A)|History],InitialGoal)
    ; Key2=down -> !, solve([fail|T],Env,bot,Alts,[fail(A)|History],InitialGoal)
    ; Key2=up ->   !, retractall(notrace),retractall(noshow),
-                     print(↑),solve([A|T],Env,bot,Alts,History,InitialGoal)
+                     print(^),solve([A|T],Env,bot,Alts,History,InitialGoal)
    ; Key2=skip -> !, retractall(notrace), assertz(notrace),
                      solve([fail|T],Env,bot,Alts,[fail(A)|History],InitialGoal)
+   ; Key2=quit ->  !, abort
    ; solve([fail|T],Env,bot,Alts,[fail(A)|History],InitialGoal)                  
   ).
 
@@ -220,6 +255,12 @@ bsolve(T,Env,bot,Alts,[exit(A)|History],InitialGoal) :-
   !, 
   solve([ret(A)|T],Env,bot,Alts,History,InitialGoal).
   
+%% choice built-in:
+
+bsolve(T,_NewEnv,bot,Alts,[builtin(A,Env)|History],InitialGoal) :-
+  !,
+  solve_builtin([A|T],Env,bot,Alts,History,InitialGoal).
+
 %% choice 
 bsolve([A|T],Env,_Cl,NewAlts,[ch(N)|History],InitialGoal) :-
   !,

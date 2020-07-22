@@ -1,6 +1,8 @@
 %% Some utilities (pretty printing, tracing, etc)
 
-:- module(util,[print_call/2,print_fail/2,print_exit/2,print_redo/2,read_keyatom/1,print_solution/2]). %%,print_goal_nondet/2,print_success/2,print_failure/2,print_subs/2,print_solution/2,trace_history/1,read_key/1]).
+:- module(util,[print_call/2,print_fail/2,print_exit/2,print_call_builtin/2,
+                print_fail_builtin/2,print_exit_builtin/2,print_redo/2,
+                read_keyatom/1,print_solution/2]). 
 
 :- use_module(library(ansi_term)). 
 :- use_module(ansi_termx). 
@@ -44,6 +46,14 @@ print_call(A,Env) :-
    unify_bindings(Bindings), 
    format("~w~n",[Ac2]),!.
 
+print_call_builtin(A,Env) :-
+   ansi_format([fg(green)],"Call: ",[]),
+   copy_term((A,Env),(Ac,Envc)),
+   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
+   maplist(call,Envc2),
+   unify_bindings(Bindings), 
+   format("~w~n",[Ac2]),!.
+
 print_redo(A,Env) :-
    ansi_format([fg8(100),bold],"Redo: ",[]),
    copy_term((A,Env),(Ac,Envc)),
@@ -60,8 +70,24 @@ print_exit(A,Env) :-
    unify_bindings(Bindings), 
    format("~w~n",[Ac2]),!.
 
+print_exit_builtin(A,Env) :-
+   ansi_format([fg(green)],"Exit: ",[]),
+   copy_term((A,Env),(Ac,Envc)),
+   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
+   maplist(call,Envc2),
+   unify_bindings(Bindings), 
+   format("~w~n",[Ac2]),!.
+
 print_fail(A,Env) :-
    ansi_format([fg(red),bold],"Fail: ",[]),
+   copy_term((A,Env),(Ac,Envc)),
+   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
+   maplist(call,Envc2),
+   unify_bindings(Bindings), 
+   format("~w~n",[Ac2]),!.
+
+print_fail_builtin(A,Env) :-
+   ansi_format([fg(red)],"Fail: ",[]),
    copy_term((A,Env),(Ac,Envc)),
    numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
    maplist(call,Envc2),
@@ -89,6 +115,7 @@ codes_keyatom([27,91,65],up)    :- !.
 codes_keyatom([27,91,66],down)  :- !.
 codes_keyatom([27,91,67],right) :- !.
 codes_keyatom([27,91,68],left)  :- !.
+codes_keyatom([113],quit)  :- !.
 codes_keyatom(_,other)  :- !.
 
 
