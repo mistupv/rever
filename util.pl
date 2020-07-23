@@ -1,8 +1,8 @@
 %% Some utilities (pretty printing, tracing, etc)
 
 :- module(util,[print_call/2,print_fail/2,print_exit/2,print_call_builtin/2,
-                print_fail_builtin/2,print_exit_builtin/2,print_redo/2,
-                read_keyatom/1,print_solution/2]). 
+                print_fail_builtin/2,print_fail_builtin_exception/3,
+                print_exit_builtin/2,print_redo/2,read_keyatom/1,print_solution/2]). 
 
 :- use_module(library(ansi_term)). 
 :- use_module(ansi_termx). 
@@ -93,6 +93,15 @@ print_fail_builtin(A,Env) :-
    maplist(call,Envc2),
    unify_bindings(Bindings), 
    format("~w~n",[Ac2]),!.
+
+print_fail_builtin_exception(_A,_Env,Error) :-
+   print_message(error,Error),!.
+   %ansi_format([fg(blue)],"Exception: ~w~n",[print_message(error,Error)]),!.
+   %copy_term((A,Env),(Ac,Envc)),
+   %numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
+   %maplist(call,Envc2),
+   %unify_bindings(Bindings), 
+   %format("~w~n",[Ac2]),!.
 
 unify_bindings([]).
 unify_bindings([Val=Var|R]) :- '$VAR'(Val)=Var,!,unify_bindings(R).
