@@ -8,13 +8,9 @@
 
 % main call:
 rdebug(G) :- 
-   comma_list(G,[A|_]),
-   matching_clauses(A,[],[]), !,
-   fail.
-rdebug(G) :- 
    comma_list(G,[A|T]),
-   retractall(notrace),%assert(notrace),
-   retractall(noshow),%assert(noshow),
+   retractall(notrace), assert(notrace),
+   retractall(noshow), assert(noshow),
    solve([A|T],[],bot,[],[],[A|T]).
 
 %% "bot" means no clause label!!
@@ -38,8 +34,11 @@ solve([],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal) :-
   print_solution(InitialGoal,Env),
   %retractall(notrace),
   read_keyatom(Key1),
-  (Key1=semicolon -> !, (noshow,! ; print_redo(A,Env2)),
-                        (notrace, !, Key2=enter ; read_keyatom(Key2)),
+  (Key1=semicolon -> !, %(noshow,! ; print_redo(A,Env2)),
+                        %(notrace, !, Key2=enter ; read_keyatom(Key2)),
+                        print_redo(A,Env2),
+                        retractall(noshow),retractall(notrace),
+                        read_keyatom(Key2),
                         !,
                         (Key2=enter -> !, solve([A|T2],Env2,Cl,Alts,[next(Env)|History],InitialGoal)
                         ; Key2=down -> !, solve([A|T2],Env2,Cl,Alts,[next(Env)|History],InitialGoal)
@@ -105,7 +104,7 @@ solve([ret(A)|T],Env,bot,Alts,History,InitialGoal) :-
 solve([rtrace|T],Env,Cl,Alts,History,InitialGoal) :-
   !,
   retractall(notrace),retractall(noshow),
-  solve(T,Env,Cl,Alts,History,InitialGoal).
+    solve(T,Env,Cl,Alts,[rtrace|History],InitialGoal).
 
 %% choice (built-in)
 solve([A|T],Env,bot,Alts,History,InitialGoal) :-
@@ -254,9 +253,14 @@ bsolve([A|T2],Env2,Cl,Alts,[bck([fail|T],Env)|History],InitialGoal) :-
 bsolve(T,Env,bot,Alts,[exit(A)|History],InitialGoal) :-
   !, 
   solve([ret(A)|T],Env,bot,Alts,History,InitialGoal).
+
+%% rtrace
+bsolve(T,Env,Cl,Alts,[rtrace|History],InitialGoal) :-
+  !,
+  solve([rtrace|T],Env,Cl,Alts,History,InitialGoal).
+
   
 %% choice built-in:
-
 bsolve(T,_NewEnv,bot,Alts,[builtin(A,Env)|History],InitialGoal) :-
   !,
   solve_builtin([A|T],Env,bot,Alts,History,InitialGoal).
