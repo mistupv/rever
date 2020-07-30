@@ -69,7 +69,7 @@ solve([],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal) :-
   %retractall(notrace),
   read_keyatom(Key1),
   (Key1=trace -> !, retractall(noshow),retractall(notrace),
-                    print_redo(A,Env2),
+                    print_port(redo,A,Env2),
                     read_keyatom(Key2),
                     (Key2=enter -> !, solve([A|T2],Env2,Cl,Alts,[bck([fail|T2],Env2),next(Env)|History],InitialGoal)
                     ; Key2=down -> !, solve([A|T2],Env2,Cl,Alts,[bck([fail|T2],Env2),next(Env)|History],InitialGoal)
@@ -80,7 +80,7 @@ solve([],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal) :-
                     ; Key2=quit ->     !, abort                    
                     ; solve([A|T2],Env2,Cl,Alts,[bck([fail|T2],Env2),next(Env)|History],InitialGoal)
                     )
-   ; Key1=semicolon -> !, (noshow,! ; print_redo(A,Env2)),
+   ; Key1=semicolon -> !, (noshow,! ; print_port(redo,A,Env2)),
                         (notrace, !, Key2=enter ; read_keyatom(Key2)),
                         !,
                         (Key2=enter -> !, solve([A|T2],Env2,Cl,Alts,[bck([fail|T2],Env2),next(Env)|History],InitialGoal)
@@ -115,7 +115,7 @@ solve([],Env,bot,[],History,InitialGoal) :-
 
 % backtrack
 solve([fail|T],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal) :-
-  (noshow, ! ; print_redo(A,Env2)),
+  (noshow, ! ; print_port(redo,A,Env2)),
   (notrace, !, Key=enter ; read_keyatom(Key)),
   !,
   (Key=enter -> !, solve([A|T2],Env2,Cl,Alts,[bck([fail|T],Env)|History],InitialGoal)
@@ -131,7 +131,7 @@ solve([fail|T],Env,bot,[([A|T2],Env2,Cl)|Alts],History,InitialGoal) :-
 % exit
 solve([ret(A)|T],Env,bot,Alts,History,InitialGoal) :-
   !,  %% moved this case here to avoid considering choice_fail for ret(A) 
-  (noshow, !; print_exit(A,Env)),
+  (noshow, !; print_port(exit,A,Env)),
   (notrace, !, Key=enter ; read_keyatom(Key)),
   (Key=enter -> !, solve(T,Env,bot,Alts,[exit(A)|History],InitialGoal)
     ; Key=down -> !, solve(T,Env,bot,Alts,[exit(A)|History],InitialGoal)
@@ -153,7 +153,7 @@ solve([rtrace|T],Env,Cl,Alts,History,InitialGoal) :-
 solve([A|T],Env,bot,Alts,History,InitialGoal) :-
   (iso_builtin_predicate(A) ; predicate_property(A,imported_from(_))),
   !,
-  (noshow,!; print_call_builtin(A,Env)),
+  (noshow,!; print_port(builtin_call,A,Env)),
   (notrace, !, Key1=enter ; read_keyatom(Key1)),
   (Key1=enter -> !, solve_builtin([A|T],Env,bot,Alts,History,InitialGoal)
     ; Key1=down -> !, solve_builtin([A|T],Env,bot,Alts,History,InitialGoal)
@@ -169,7 +169,7 @@ solve([A|T],Env,bot,Alts,History,InitialGoal) :-
 solve([A|T],Env,bot,Alts,History,InitialGoal) :-
   matching_clauses(A,Env,[_|_]), % matches at least one clause
   !,
-  (noshow,!; print_call(A,Env)),
+  (noshow,!; print_port(call,A,Env)),
   (notrace, !, Key=enter ; read_keyatom(Key)),
   (Key=enter -> !, solve_choice([A|T],Env,bot,Alts,History,InitialGoal)
     ; Key=down -> !, solve_choice([A|T],Env,bot,Alts,History,InitialGoal)
@@ -184,7 +184,7 @@ solve([A|T],Env,bot,Alts,History,InitialGoal) :-
 %% choice fail 
 solve([A|T],Env,bot,Alts,History,InitialGoal) :-
   matching_clauses(A,Env,[]),!, %% no matching clause!
-  (noshow,! ; print_call(A,Env)),
+  (noshow,! ; print_port(call,A,Env)),
   (notrace, !, Key1=enter ; read_keyatom(Key1)),
   (Key1=enter -> !, solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal)
     ; Key1=down -> !, solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal)
@@ -218,7 +218,7 @@ solve_builtin([A|T],Env,bot,Alts,History,InitialGoal) :-
   !,
   unifiable(A,Ac,MGU),
   append(Env,MGU,NewEnv),
-  (noshow,! ; print_exit_builtin(A,NewEnv)),
+  (noshow,! ; print_port(builtin_exit,A,NewEnv)),
   (notrace, !, Key2=enter ; read_keyatom(Key2)),
   (Key2=enter -> !, solve(T,NewEnv,bot,Alts,[builtin(A,Env)|History],InitialGoal)
     ; Key2=down -> !, solve(T,NewEnv,bot,Alts,[builtin(A,Env)|History],InitialGoal)
@@ -231,7 +231,7 @@ solve_builtin([A|T],Env,bot,Alts,History,InitialGoal) :-
   ).
 
 solve_builtin([A|T],Env,bot,Alts,History,InitialGoal) :-
-  (noshow,! ; print_fail_builtin(A,Env)),
+  (noshow,! ; print_port(builtin_fail,A,Env)),
   (notrace, !, Key2=enter ; read_keyatom(Key2)),
   (Key2=enter -> !, solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal)
     ; Key2=down -> !, solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal)
@@ -257,7 +257,7 @@ solve_builtin_exception(Error,[A|T],Env,bot,Alts,History,InitialGoal) :-
 
 
 solve_choice_fail([A|T],Env,bot,Alts,History,InitialGoal) :-
-  (noshow, !; print_fail(A,Env)),
+  (noshow, !; print_port(fail,A,Env)),
   (notrace, !, Key2=enter ; read_keyatom(Key2)),
   (Key2=enter -> !, solve([fail|T],Env,bot,Alts,[fail(A)|History],InitialGoal)
    ; Key2=down -> !, solve([fail|T],Env,bot,Alts,[fail(A)|History],InitialGoal)

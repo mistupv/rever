@@ -1,98 +1,88 @@
 %% Some utilities (pretty printing, tracing, etc)
 
-:- module(util,[print_call/2,print_fail/2,print_exit/2,print_call_builtin/2,
-                print_fail_builtin/2,print_fail_builtin_exception/3,
-                print_exit_builtin/2,print_redo/2,read_keyatom/1,print_solution/2]). 
+:- module(util,[print_port/3,print_fail_builtin_exception/3,read_keyatom/1,print_solution/2]). 
 
 :- use_module(library(ansi_term)). 
 :- use_module(ansi_termx). 
 
-   % copy_term(InitialGoal,GC),term_variables(GC,Vars), numbervars(Vars,0,Next),
-   % copy_term((L,InitialGoal),(LC,G)),
-   % term_variables(G,VarsG),
-   % unify(LC),
-   % %numbervars(G,0,_),
-   % comma_list(Goal,GC),
-   % ansi_format([bold]," [~w]: ",[Goal]),
-   % numbervars(VarsG,Next,_),
-   % print_subs(Vars,VarsG).   
-
 print_solution(G,Env) :-
    ansi_format([bold],"**Solution: ",[]),
-   copy_term(G,GCC), term_variables(GCC,Vars), numbervars(Vars),
-   %
-   copy_term((G,Env),(Gc,Envc)),
-   term_variables(Gc,VarsG),
-   %numbervars((Gc,Envc)),varnumbers_names((Gc,Envc),(Gc2,Envc2),Bindings),
-   maplist(call,Envc),
-   %unify_bindings(Bindings), 
-   %format(" ~w~n",[Gc2]),
-   numbervars(VarsG),
-   %
-   print_subs(Vars,VarsG),!.
-
-print_subs([],[]) :- nl.
-print_subs([X],[Val]) :- !,
-   print(X),format(" = "),print(Val),nl.
-print_subs([X|R],[Val|RV]) :-
-   print(X),format(" = "),print(Val),format(", "),print_subs(R,RV),!.
+   maplist(call,Env),
+   format("~w~n",[G]),
+   fail.
+print_solution(_,_).
 
 
-print_call(A,Env) :-
+%    copy_term((G,Env),(GC,EnvC)),
+%    term_variables(GC,GCvars),
+%    maplist(call,EnvC),
+%    term_variables(G,GVars),
+%    print_subs(GVars,GCvars),fail.
+% print_solution(_,_) :- !.
+
+% print_subs([],[]) :- nl.
+% print_subs([X],[Val]) :- !,
+%    print(X),format(" = "),print(Val),nl.
+% print_subs([X|R],[Val|RV]) :-
+%    print(X),format(" = "),print(Val),format(", "),print_subs(R,RV),!.
+
+
+% print_solution(G,Env) :-
+%    ansi_format([bold],"**Solution: ",[]),
+%    copy_term(G,GCC), term_variables(GCC,Vars), numbervars(Vars),
+%    %
+%    copy_term((G,Env),(Gc,Envc)),
+%    term_variables(Gc,VarsG),
+%    %numbervars((Gc,Envc)),varnumbers_names((Gc,Envc),(Gc2,Envc2),Bindings),
+%    maplist(call,Envc),
+%    %unify_bindings(Bindings), 
+%    %format(" ~w~n",[Gc2]),
+%    numbervars(VarsG),
+%    %
+%    print_subs(Vars,VarsG),!.
+
+% print_subs([],[]) :- nl.
+% print_subs([X],[Val]) :- !,
+%    print(X),format(" = "),print(Val),nl.
+% print_subs([X|R],[Val|RV]) :-
+%    print(X),format(" = "),print(Val),format(", "),print_subs(R,RV),!.
+
+print_port(call,A,Env) :-
    ansi_format([fg(green),bold],"Call: ",[]),
-   copy_term((A,Env),(Ac,Envc)),
-   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
-   maplist(call,Envc2),
-   unify_bindings(Bindings), 
-   format("~w~n",[Ac2]),!.
-
-print_call_builtin(A,Env) :-
+   maplist(call,Env),
+   format("~w~n",[A]),
+   fail.
+print_port(builtin_call,A,Env) :-
    ansi_format([fg(green)],"Call: ",[]),
-   copy_term((A,Env),(Ac,Envc)),
-   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
-   maplist(call,Envc2),
-   unify_bindings(Bindings), 
-   format("~w~n",[Ac2]),!.
-
-print_redo(A,Env) :-
+   maplist(call,Env),
+   format("~w~n",[A]),
+   fail.
+print_port(redo,A,Env) :-
    ansi_format([fg8(100),bold],"Redo: ",[]),
-   copy_term((A,Env),(Ac,Envc)),
-   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
-   maplist(call,Envc2),
-   unify_bindings(Bindings), 
-   format("~w~n",[Ac2]),!.
-
-print_exit(A,Env) :-
+   maplist(call,Env),
+   format("~w~n",[A]),
+   fail.
+print_port(exit,A,Env) :-
    ansi_format([fg(green),bold],"Exit: ",[]),
-   copy_term((A,Env),(Ac,Envc)),
-   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
-   maplist(call,Envc2),
-   unify_bindings(Bindings), 
-   format("~w~n",[Ac2]),!.
-
-print_exit_builtin(A,Env) :-
+   maplist(call,Env),
+   format("~w~n",[A]),
+   fail.
+print_port(builtin_exit,A,Env) :-
    ansi_format([fg(green)],"Exit: ",[]),
-   copy_term((A,Env),(Ac,Envc)),
-   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
-   maplist(call,Envc2),
-   unify_bindings(Bindings), 
-   format("~w~n",[Ac2]),!.
-
-print_fail(A,Env) :-
+   maplist(call,Env),
+   format("~w~n",[A]),
+   fail.
+print_port(fail,A,Env) :-
    ansi_format([fg(red),bold],"Fail: ",[]),
-   copy_term((A,Env),(Ac,Envc)),
-   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
-   maplist(call,Envc2),
-   unify_bindings(Bindings), 
-   format("~w~n",[Ac2]),!.
-
-print_fail_builtin(A,Env) :-
+   maplist(call,Env),
+   format("~w~n",[A]),
+   fail.
+print_port(builtin_fail,A,Env) :-
    ansi_format([fg(red)],"Fail: ",[]),
-   copy_term((A,Env),(Ac,Envc)),
-   numbervars((Ac,Envc)),varnumbers_names((Ac,Envc),(Ac2,Envc2),Bindings),
-   maplist(call,Envc2),
-   unify_bindings(Bindings), 
-   format("~w~n",[Ac2]),!.
+   maplist(call,Env),
+   format("~w~n",[A]),
+   fail.
+print_port(_,_,_) :- !.
 
 print_fail_builtin_exception(_A,_Env,Error) :-
    print_message(error,Error),!.
