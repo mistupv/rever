@@ -3,6 +3,7 @@
 :- use_module(ansi_termx). 
 :- use_module(util).
 
+
 :- dynamic notrace/0.
 :- dynamic noshow/0.
 
